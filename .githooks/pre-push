@@ -1,0 +1,41 @@
+#!/bin/sh
+# The checks run before every push, not only in CI: the checker over every module and the tests. A
+# push with a red check does not leave the machine. Skip them only knowingly, with SKIP_GATE=1, and
+# say so in the commit.
+if [ "${SKIP_GATE:-}" = 1 ]; then
+  echo "pre-push: checks skipped (SKIP_GATE=1)" >&2
+  exit 0
+fi
+cd "$(git rev-parse --show-toplevel)" || exit 1
+unset $(git rev-parse --local-env-vars)
+
+# The checks prove what is checked out, so what is pushed must be exactly that: every ref git lists
+# on stdin (a deletion, all zeros, carries nothing to check) must be HEAD's commit, and the tree must
+# hold nothing uncommitted, untracked files included, since they change the verdict.
+refuse() {
+  echo "pre-push: refused. $1" >&2
+  echo "pre-push: check out and commit what is pushed, then push again; or push knowingly with SKIP_GATE=1 and say so in the commit." >&2
+  exit 1
+}
+head=
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+  if [ -z "$head" ]; then
+    head=$(git rev-parse --verify --quiet 'HEAD^{commit}') ||
+      refuse "nothing is checked out, so there is nothing to check for $remote_ref."
+    if [ -n "$(git status --porcelain)" ]; then
+      refuse "the tree has changes that are not committed, so the checks would see something other than the commit being pushed."
+    fi
+  fi
+  pushed=$(git rev-parse --verify --quiet "$local_sha^{commit}") || pushed=
+  if [ "$pushed" != "$head" ]; then
+    refuse "$remote_ref would be $local_sha, which is not the checked-out commit $head."
+  fi
+done
+echo "pre-push: running the checker and the tests before the push" >&2
+PY=python3
+command -v python3 >/dev/null 2>&1 || PY=python
+PYTHONDONTWRITEBYTECODE=1 "$PY" tools/check_modules.py && PYTHONDONTWRITEBYTECODE=1 "$PY" -m unittest discover -s tests

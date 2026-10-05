@@ -1,0 +1,608 @@
+{
+ "schema_version": 1,
+ "layers": [
+  "product",
+  "site",
+  "lab"
+ ],
+ "product": {
+  "schema_version": 1,
+  "ipc_dir": "/dev/shm",
+  "binds": [
+   "$HOME"
+  ],
+  "claude_config_dir": "$HOME/.beethoven/claude",
+  "consent_markers": [
+   "$HOME/.beethoven/claude/.beethoven-remote-consent",
+   "$HOME/.beethoven/claude/.ashley-remote-consent"
+  ],
+  "login_abandon_s": 1200,
+  "login_node_rules": {
+   "poll_floor_seconds": 60
+  },
+  "worker_defaults": {
+   "cpus": 2,
+   "mem": "8G",
+   "hours": 8,
+   "permission_mode": "default",
+   "capacity": 4
+  }
+ },
+ "module_keys": {
+  "lab": [
+   "kind",
+   "module_version",
+   "site",
+   "lab",
+   "profile"
+  ],
+  "site": [
+   "kind",
+   "module_version"
+  ]
+ },
+ "id_pattern": "[a-z0-9][a-z0-9-]{0,31}",
+ "id_match": "whole",
+ "profile_is_site": true,
+ "additive": [
+  "binds"
+ ],
+ "fields": {
+  "schema_version": {
+   "type": "int",
+   "layers": [
+    "product"
+   ],
+   "required": true,
+   "description": "profile schema version (integer)"
+  },
+  "site": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": true,
+   "description": "short site id used in session names, e.g. wayne"
+  },
+  "display_name": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the university's name for messages"
+  },
+  "scheduler": {
+   "type": "enum",
+   "values": [
+    "slurm",
+    "pbs",
+    "lsf",
+    "sge",
+    "htcondor"
+   ],
+   "layers": [
+    "site"
+   ],
+   "required": true,
+   "description": "scheduler family"
+  },
+  "submit_host": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "login node the scheduler client runs on"
+  },
+  "bin_dir": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "scheduler client directory, when not on PATH"
+  },
+  "partition_cpu": {
+   "type": "str",
+   "layers": [
+    "site",
+    "lab"
+   ],
+   "required": true,
+   "description": "CPU partition for interactive and test work"
+  },
+  "qos_cpu": {
+   "type": "str",
+   "layers": [
+    "site",
+    "lab"
+   ],
+   "required": false,
+   "description": "QoS for partition_cpu"
+  },
+  "partition_cpu_batch": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "CPU partition for long workers"
+  },
+  "qos_batch": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "QoS for partition_cpu_batch"
+  },
+  "partitions_gpu": {
+   "type": "list",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "GPU partitions, in order of preference"
+  },
+  "account": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "allocation account, when the site needs one"
+  },
+  "max_walltime": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "longest wall time the CPU partition accepts"
+  },
+  "node_tmp": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": true,
+   "description": "node-local temp pattern; $USER and $SLURM_JOB_ID/$HPCW_JOB_ID expand in the job"
+  },
+  "node_tmp_var": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "variable that names node-local temp when the site sets one (SLURM_TMPDIR, L_SCRATCH); empty = none trusted"
+  },
+  "tmpdir_is_node_local": {
+   "type": "bool",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "whether $TMPDIR may be trusted as node-local (false on Wayne State: it is CephFS)"
+  },
+  "ipc_dir": {
+   "type": "str",
+   "layers": [
+    "product",
+    "site"
+   ],
+   "required": true,
+   "description": "where sockets and pipes go (never a swept /tmp)"
+  },
+  "shared_state_dir": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": true,
+   "description": "shared storage for run directories; $HOME and $USER expand"
+  },
+  "shared_install": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "the lab's shared copy of the framework (an absolute directory with bin/, lib/, jobs/, profiles/, VERSION; usually a `current` link to a numbered directory); `hpcworker install --shared` uses it and copies no code into the home; empty = none"
+  },
+  "runtime": {
+   "type": "enum",
+   "values": [
+    "apptainer",
+    "singularity",
+    "podman",
+    "pyxis"
+   ],
+   "layers": [
+    "site"
+   ],
+   "required": true,
+   "description": "container runtime"
+  },
+  "runtime_module": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "module to load for the runtime, if any"
+  },
+  "runtime_bin": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "absolute path of the runtime binary, when known"
+  },
+  "image_store": {
+   "type": "dict",
+   "layers": [
+    "lab"
+   ],
+   "required": true,
+   "description": "{type: sandbox|sif, path: ...}",
+   "keys": [
+    {
+     "name": "type",
+     "type": "enum",
+     "values": [
+      "sandbox",
+      "sif"
+     ],
+     "required": true
+    },
+    {
+     "name": "path",
+     "type": "str",
+     "required": true
+    }
+   ]
+  },
+  "claude_bin": {
+   "type": "str",
+   "layers": [
+    "lab"
+   ],
+   "required": true,
+   "description": "path of the claude executable as seen inside the container"
+  },
+  "binds": {
+   "type": "list",
+   "layers": [
+    "product",
+    "site",
+    "lab"
+   ],
+   "required": false,
+   "description": "bind mounts for the container; $HOME and $USER expand"
+  },
+  "cache_dir": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "runtime cache; empty = under node_tmp"
+  },
+  "fakeroot_rung": {
+   "type": "int_or_none",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "predicted --fakeroot rung 1-4, or null"
+  },
+  "egress": {
+   "type": "dict",
+   "layers": [
+    "site"
+   ],
+   "required": true,
+   "description": "{class: direct|http-proxy-auto|http-proxy-module|none, proxy_env: {}, proxy_module: '', ca_bundle: '', measured: {}}",
+   "keys": [
+    {
+     "name": "class",
+     "type": "enum",
+     "values": [
+      "direct",
+      "http-proxy-auto",
+      "http-proxy-module",
+      "none"
+     ],
+     "required": true
+    },
+    {
+     "name": "proxy_env",
+     "type": "dict",
+     "required": false
+    },
+    {
+     "name": "proxy_module",
+     "type": "str",
+     "required": false
+    },
+    {
+     "name": "ca_bundle",
+     "type": "str",
+     "required": false
+    },
+    {
+     "name": "measured",
+     "type": "dict",
+     "required": false
+    }
+   ]
+  },
+  "claude_config_dir": {
+   "type": "str",
+   "layers": [
+    "product"
+   ],
+   "required": true,
+   "description": "CLAUDE_CONFIG_DIR of the student's own Claude Code login; the framework reads two booleans from its .claude.json (remoteDialogSeen, the workspace's hasTrustDialogAccepted) and nothing else"
+  },
+  "consent_markers": {
+   "type": "list",
+   "layers": [
+    "product"
+   ],
+   "required": false,
+   "description": "fallback marker files whose presence records the student's Remote Control consent when Claude Code has not recorded it itself"
+  },
+  "ood_base_url": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "Open OnDemand portal URL"
+  },
+  "ood_shell_host": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "host the portal's Shell app opens"
+  },
+  "ood_rnode_enabled": {
+   "type": "bool_or_none",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "probed: is the /rnode/ reverse proxy on"
+  },
+  "ood_auth": {
+   "type": "enum",
+   "values": [
+    "",
+    "http-basic",
+    "cookie"
+   ],
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "how the portal signs in (a hint for the extension's Details; the extension tests the channel itself)"
+  },
+  "vpn_required": {
+   "type": "bool",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "portal and login node need the VPN"
+  },
+  "vpn_portal": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the VPN portal address a student types into the VPN app (protect.wayne.edu)"
+  },
+  "vpn_app": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the VPN app's name (GlobalProtect)"
+  },
+  "vpn_help_url": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the university's page on setting up the VPN (https)"
+  },
+  "grid_account_help_url": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the university's page on getting a cluster account (https)"
+  },
+  "grid_2fa_help_url": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the university's page on setting up the cluster's two-factor code for a password sign-in (https)"
+  },
+  "ssh_host": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the login node's public ssh name, for Beethoven's ssh path (grid.wayne.edu); empty = no ssh path"
+  },
+  "ssh_port": {
+   "type": "int",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the port of ssh_host"
+  },
+  "ssh_host_key": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "ssh_host's host key fingerprint as ssh-keygen -l prints it (SHA256:...); Beethoven refuses any other key"
+  },
+  "ssh_relay": {
+   "type": "str_or_none",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "a relay Beethoven may use to reach ssh_host (a wss:// or https:// address), or null for none"
+  },
+  "browser_key_days": {
+   "type": "int_or_none",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "days a browser key's line stays valid; past them the gate removes it (null = no expiry)"
+  },
+  "session_title": {
+   "type": "str",
+   "layers": [
+    "site",
+    "lab"
+   ],
+   "required": false,
+   "description": "the Remote Control session title a worker asks for (\"Wayne State grid\"; \"<title> \u00b7 <name>\" for a worker not named worker); empty = \"Grid worker\""
+  },
+  "login_abandon_s": {
+   "type": "int",
+   "layers": [
+    "product",
+    "lab"
+   ],
+   "required": false,
+   "description": "seconds a worker job waits for the Claude sign-in before it stops itself and queues no successor (0 = never)"
+  },
+  "restricted": {
+   "type": "bool",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "no worker may start on this site's accounts (hpcworker connect refuses)"
+  },
+  "restricted_workspaces": {
+   "type": "list",
+   "layers": [
+    "lab"
+   ],
+   "required": false,
+   "description": "worker names that may not start (\"*\" for all); hpcworker connect refuses them"
+  },
+  "login_node_rules": {
+   "type": "dict",
+   "layers": [
+    "product",
+    "site"
+   ],
+   "required": true,
+   "description": "{max_processes, poll_floor_seconds}",
+   "keys": [
+    {
+     "name": "max_processes",
+     "type": "int",
+     "required": true
+    },
+    {
+     "name": "poll_floor_seconds",
+     "type": "int",
+     "required": true
+    }
+   ]
+  },
+  "xdg_runtime_fix": {
+   "type": "bool",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "point XDG_RUNTIME_DIR at ipc_dir/$USER/xdg for Claude Code's bash tool"
+  },
+  "scheduler_in_worker": {
+   "type": "bool",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "bind the host's scheduler client into the worker's container so Claude Code there can submit and watch jobs (Slurm with apptainer or singularity only; the binds were measured at Wayne State)"
+  },
+  "home_filesystem": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "panfs, lustre, gpfs, nfs, cephfs...: parallel homes want SIF over sandbox"
+  },
+  "worker_defaults": {
+   "type": "dict",
+   "layers": [
+    "product",
+    "lab"
+   ],
+   "required": false,
+   "description": "defaults for hpcworker worker start",
+   "keys": [
+    {
+     "name": "cpus",
+     "type": "int",
+     "required": false
+    },
+    {
+     "name": "mem",
+     "type": "str",
+     "required": false
+    },
+    {
+     "name": "hours",
+     "type": "int",
+     "required": false
+    },
+    {
+     "name": "permission_mode",
+     "type": "str",
+     "required": false
+    },
+    {
+     "name": "capacity",
+     "type": "int",
+     "required": false
+    }
+   ]
+  },
+  "notes": {
+   "type": "str",
+   "layers": [
+    "site",
+    "lab"
+   ],
+   "required": false,
+   "description": "free text for the maintainer"
+  }
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "kind": "lab",
+ "module_version": 1,
+ "site": "wayne",
+ "lab": "oschome",
+ "profile": "wayne",
+ "partition_cpu_batch": "reqp",
+ "qos_batch": "requeue",
+ "account": "",
+ "shared_state_dir": "/rs/rs_grp_oschome/$USER/hpcworker",
+ "shared_install": "/rs/rs_grp_oschome/shared/beethoven/hpcworker/current",
+ "image_store": {
+  "type": "sandbox",
+  "path": "/rs/rs_grp_oschome/shared/beethoven/containers/claude-node22"
+ },
+ "claude_bin": "/rs/rs_grp_oschome/shared/beethoven/npm-claude-node22/bin/claude",
+ "binds": [
+  "/rs/rs_grp_oschome/$USER",
+  "/rs/rs_grp_oschome/shared/beethoven"
+ ]
+}
