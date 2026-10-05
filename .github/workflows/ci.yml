@@ -1,0 +1,31 @@
+name: ci
+# The checker and its tests, on the login node's Python (3.6, the oldest any user of these modules
+# runs) and on the runner's current one. No secret and no network beyond the image pull. The job's
+# name is the required check in .github/rulesets/main.json; renaming it means changing that file in
+# the same pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check (modules against the schema; tests on python 3.6 and current)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: modules against schema/module-schema.json
+        run: python3 tools/check_modules.py
+      - name: tests, current python
+        run: python3 -m unittest discover -s tests -v
+      - name: checker and tests, python 3.6
+        run: |
+          docker run --rm -v "$PWD:/w:ro" -w /w -e PYTHONDONTWRITEBYTECODE=1 python:3.6-slim \
+            sh -c 'python --version && python tools/check_modules.py && python -m unittest discover -s tests -v'
+      - name: shell scripts parse
+        run: for f in tools/*.sh .githooks/pre-push; do bash -n "$f"; done
