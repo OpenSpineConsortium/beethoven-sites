@@ -42,33 +42,41 @@ Wayne State is the site `wayne` and the lab `oschome`, composed into `profiles/w
   `profile_is_site` in the schema says which rule is in force.
 - **Measured values are dated.** Where a module records what a cluster answered (`egress.measured`,
   a host key, the portal's sign-in), `notes` says when and from where. Never a password, a key, a
-  token or an account's private data: a module is read by every client and published with the
-  framework's shared copy.
+  token or an account's private data: a module's values are read by every client and published,
+  inside the composed profile, with the framework's shared copy.
 
 ## Checking a module
 
 ```
 python3 tools/check_modules.py                   # every module against schema/module-schema.json
-python3 -m unittest discover -s tests            # the checker's own tests
+python3 -m unittest discover -s tests            # the checker's own tests and the boundary's (tests/test_boundary.py)
 ```
 
 Python 3.6 standard library, nothing else, and nothing of hpcworker imported: whoever writes a
-module checks it with this repository alone. The checker sees each module and each site and lab pair;
-the whole composed profile (a host key's form, a link being https, the poll floor's minimum) is
-checked by hpcworker when it composes what it pins (`profile.py compose-all --check`), so a module
-that passes here and fails there means this repository's schema copy is older than hpcworker's.
+module checks it with this repository alone. The checker sees each module and each site and lab pair,
+with every rule the pinned schema states; what the schema does not state yet is listed in
+`interface/README.md`. The composed profile's value rules (a host key's form, a link being https, the
+poll floor's minimum, no credential-shaped text) are in no schema yet and are checked only by
+hpcworker when it composes what it pins (`profile.py compose-all --check`), so a module that passes
+here can still fail there.
 
 ## How the schema and the modules move between the two repositories
 
-- **The schema comes from hpcworker.** `bash tools/pull_schema.sh --from <hpcworker checkout>` runs
-  `profile.py module-schema` at that checkout's committed HEAD and writes `schema/module-schema.json`
-  and `schema/ORIGIN` (the commit and the file's sha256; a test checks the file against it). A rule
-  changes in hpcworker first, then lands here before a module may use it.
-- **The modules go to hpcworker.** hpcworker keeps a pinned copy in `framework/sites/` with its own
-  `ORIGIN` (this repository's commit and each file's sha256); its `framework/sites/pull.sh` copies
-  them from a checkout or through `gh`, `profile.py compose-all` writes the profiles, and the copy and
-  the profiles are committed there together. Its suite fails while a profile differs from what its
-  modules compose.
+Each repository reaches the other only through what it declares in `interface/INTERFACE.json`, as a
+copy pinned to a merged commit and taken through `gh`, never from a checkout (the interface standard;
+`interface/README.md` says what this repository offers and takes).
+
+- **The schema comes from hpcworker.** `bash tools/pull_schema.sh [--ref REF]` takes hpcworker's
+  export `module-schema` version 1 from GitHub at a commit hpcworker's `main` contains, runs none of
+  hpcworker's code, and writes `schema/module-schema.json` and `schema/ORIGIN` (the commit, the export
+  and its version, and the file's sha256; `tests/test_boundary.py` checks the copy against it). A rule
+  changes in hpcworker first, then lands here before a module may use it. Until hpcworker's `main`
+  publishes its `interface/INTERFACE.json`, the pull refuses and says so.
+- **The modules go to hpcworker.** This repository's export `modules` version 1 is every file under
+  `sites/`. hpcworker keeps a pinned copy in `framework/sites/` with its own `ORIGIN` (this
+  repository's commit and each file's sha256); its `framework/sites/pull.sh` copies them through
+  `gh`, `profile.py compose-all` writes the profiles, and the copy and the profiles are committed
+  there together. Its suite fails while a profile differs from what its modules compose.
 
 ## Pull requests
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check every site and lab module under sites/ against the module schema hpcworker publishes
-(schema/module-schema.json, pinned by schema/ORIGIN). Python 3.6 standard library only, nothing
-imported from hpcworker, so whoever writes a module can check it with this repository alone.
+(schema/module-schema.json, its export module-schema, pinned by schema/ORIGIN). Python 3.6 standard
+library only, nothing imported from hpcworker, so whoever writes a module can check it with this
+repository alone.
 
     python3 tools/check_modules.py [--root DIR]
 
@@ -9,9 +10,16 @@ It checks what the modules show on their own: each file sits where its ids say, 
 schema's fields and, inside an object field, only the keys the schema names, sets only what its
 layer may set (a lab never pins a host key, a site never names a lab's volume, no module moves the
 student's sign-in), with the right types; a lab belongs to its site, no two labs name one profile,
-and the product, the site and the lab together set every field and key a profile must have. The whole composed profile (a host key's form, a link being https, the poll
-floor) is checked by hpcworker when it composes the modules it pins (`profile.py compose-all
---check` there); a module that passes here and fails there is a schema this copy does not yet have.
+and the product, the site and the lab together set every field and key a profile must have.
+
+Each rule comes from the schema wherever the schema states it: the fields, their types and the layers
+that may set them, the keys inside an object field, what a profile must carry, the product's values,
+the keys a module says about itself, the id pattern, and whether a lab's profile is its site's. What
+module-schema 1 does not state is written here, marked so, and listed in interface/README.md with
+what the schema would need to carry. The composed profile's value rules (a host key's form, a link
+being https, the poll floor's minimum, no credential-shaped text) are in no schema yet, so only
+hpcworker applies them, when it composes the modules it pins (`profile.py compose-all --check`
+there): a module that passes here and fails there breaks one of those.
 """
 import json
 import os
@@ -20,6 +28,33 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+# The module kinds this repository's layout holds (sites/<site>/site.json, sites/<site>/labs/<lab>.json:
+# the export "modules"); the schema's module_keys must name exactly these.
+KINDS = ("site", "lab")
+# Which keys of a module are ids, matched against the schema's id_pattern: a site module's "site" (the
+# profile's field of that name) and a lab module's site, lab and profile. Not in module-schema 1.
+IDS = {"site": ("site",), "lab": ("site", "lab", "profile")}
+
+
+def _int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+# What each type name of the schema admits ("enum" admits a string among the field's values). The names
+# are the schema's; what they admit is not in module-schema 1, so it is written here as hpcworker reads
+# it: an integer is never a boolean, and "_or_none" also admits null.
+TYPES = {
+    "str": lambda v: isinstance(v, str),
+    "int": _int,
+    "bool": lambda v: isinstance(v, bool),
+    "list": lambda v: isinstance(v, list),
+    "dict": lambda v: isinstance(v, dict),
+    "int_or_none": lambda v: v is None or _int(v),
+    "bool_or_none": lambda v: v is None or isinstance(v, bool),
+    "str_or_none": lambda v: v is None or isinstance(v, str),
+}
+# a schema that changes one of these comes with a change here, in the pull request that takes it
+NEW_TO_CHECKER = "; tools/check_modules.py learns it in the pull request that takes this schema"
 
 
 def read_json(path):
@@ -38,23 +73,9 @@ def type_ok(spec, value):
     t = spec["type"]
     if t == "enum":
         return isinstance(value, str) and value in spec["values"]
-    if t == "str":
-        return isinstance(value, str)
-    if t == "int":
-        return isinstance(value, int) and not isinstance(value, bool)
-    if t == "bool":
-        return isinstance(value, bool)
-    if t == "list":
-        return isinstance(value, list)
-    if t == "dict":
-        return isinstance(value, dict)
-    if t == "int_or_none":
-        return value is None or (isinstance(value, int) and not isinstance(value, bool))
-    if t == "bool_or_none":
-        return value is None or isinstance(value, bool)
-    if t == "str_or_none":
-        return value is None or isinstance(value, str)
-    raise ValueError("the schema names a type this checker does not know: %r (pull a newer checker)" % t)
+    if t not in TYPES:
+        raise ValueError("the schema names a type this checker does not know: %r%s" % (t, NEW_TO_CHECKER))
+    return TYPES[t](value)
 
 
 def describe(spec):
@@ -64,12 +85,36 @@ def describe(spec):
 def id_ok(value, schema):
     """an id is matched whole, as hpcworker does (a "$" alone would let a trailing newline through)"""
     if schema.get("id_match") != "whole":
-        raise ValueError("the schema asks for an id match this checker does not know: %r (pull a newer checker)" % schema.get("id_match"))
+        raise ValueError("the schema asks for an id match this checker does not know: %r%s" % (schema.get("id_match"), NEW_TO_CHECKER))
     return isinstance(value, str) and re.fullmatch(schema["id_pattern"], value) is not None
 
 
+def module_kinds(schema):
+    """the layers a module may be, in the order they are laid down: those the schema's module_keys names
+    (the others, the product, are the schema's own values)"""
+    return [layer for layer in schema["layers"] if layer in schema["module_keys"]]
+
+
+def schema_problems(schema):
+    """What in SCHEMA this checker cannot apply: module kinds other than this repository's layout holds,
+    an id match or a type name it does not know. Found before any module is read, so a schema that needs
+    a newer checker says so even where no module uses what changed."""
+    out = []
+    if tuple(module_kinds(schema)) != KINDS or set(schema["module_keys"]) != set(KINDS):
+        out.append("the schema's module kinds are %s, but sites/ holds %s%s"
+                   % ("/".join(sorted(schema["module_keys"])), "/".join(KINDS), NEW_TO_CHECKER))
+    if schema.get("id_match") != "whole":
+        out.append("the schema asks for an id match this checker does not know: %r%s" % (schema.get("id_match"), NEW_TO_CHECKER))
+    for key, spec in sorted(schema["fields"].items()):
+        for typed in [spec] + spec.get("keys", []):
+            if typed["type"] != "enum" and typed["type"] not in TYPES:
+                out.append("field %s: the schema names a type this checker does not know: %r%s"
+                           % (".".join([key] + ([typed["name"]] if "name" in typed else [])), typed["type"], NEW_TO_CHECKER))
+    return out
+
+
 def owner(key, kind, schema):
-    modules = [layer for layer in schema["fields"][key]["layers"] if layer != "product"]
+    modules = [layer for layer in schema["fields"][key]["layers"] if layer in schema["module_keys"]]
     if not modules:
         return "%s is the product's own value; no module sets it" % key
     return "%s is set by the %s module, not by a %s module" % (key, " or the ".join(modules), kind)
@@ -80,12 +125,13 @@ def check_module(mod, kind, schema):
     if not isinstance(mod, dict):
         return ["the %s module is not a JSON object" % kind]
     errs = []
+    # module_keys names kind and module_version; what each may hold is not in module-schema 1
     if mod.get("kind") != kind:
         errs.append("kind must be %r in a %s module (got %r)" % (kind, kind, mod.get("kind")))
     mv = mod.get("module_version")
-    if not (isinstance(mv, int) and not isinstance(mv, bool) and mv >= 1):
+    if not (_int(mv) and mv >= 1):
         errs.append("module_version must be a whole number from 1 (got %r)" % (mv,))
-    for key in (("site",) if kind == "site" else ("site", "lab", "profile")):
+    for key in IDS[kind]:
         if not id_ok(mod.get(key), schema):
             errs.append("%s must be lower-case letters, digits and dashes (got %r)" % (key, mod.get(key)))
     if kind == "lab" and schema.get("profile_is_site") and mod.get("profile") != mod.get("site"):
@@ -115,7 +161,8 @@ def check_module(mod, kind, schema):
 
 def missing(site, lab, schema):
     """the fields, and the keys inside an object field, a profile must carry that neither the product
-    nor SITE nor LAB sets"""
+    nor SITE nor LAB sets. An object merges key by key across the layers, so a key counts when any
+    layer's object holds it (the merge rule is not in module-schema 1; only "additive" is)."""
     product, out = schema["product"], []
     for key, spec in schema["fields"].items():
         layers = [m[key] for m in (product, site, lab) if key in m]
@@ -131,6 +178,9 @@ def check_tree(root=None, schema=None):
     """(problems, number of sites, number of labs) for every module under ROOT/sites."""
     root = root or ROOT
     schema = schema or load_schema(root)
+    bad = schema_problems(schema)
+    if bad:
+        return ["schema/module-schema.json: %s" % p for p in bad], 0, 0
     sites_dir = os.path.join(root, "sites")
     problems, n_sites, n_labs, profiles = [], 0, 0, {}
 
@@ -171,6 +221,7 @@ def check_tree(root=None, schema=None):
                 continue
             if lab.get("lab") != fn[:-5] or lab.get("site") != name:
                 problems.append("%s: its lab id must be %r and its site %r, as the path says" % (rel(lab_path), fn[:-5], name))
+            # one lab per profile id: hpcworker's compose-all refuses two, and module-schema 1 does not say so
             pid = lab.get("profile")
             if isinstance(pid, str):
                 if pid in profiles:

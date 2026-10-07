@@ -1,0 +1,26 @@
+{
+ "format": 1,
+ "name": "beethoven-sites",
+ "repository": "OpenSpineConsortium/beethoven-sites",
+ "summary": "The university site modules of Beethoven, data only: one site module per university's cluster and one lab module per group's deployment on it.",
+ "standard": "https://github.com/OpenSpineConsortium/beethoven/blob/main/INTERFACES.md",
+ "exports": [
+  {
+   "id": "modules",
+   "kind": "data",
+   "version": 1,
+   "summary": "sites/<site>/site.json and sites/<site>/labs/<lab>.json, each passing tools/check_modules.py against the pinned module schema; hpcworker composes the profiles from them",
+   "paths": ["sites/"],
+   "consumers": ["OpenSpineConsortium/hpcworker"]
+  }
+ ],
+ "imports": [
+  {
+   "repository": "OpenSpineConsortium/hpcworker",
+   "export": "module-schema",
+   "version": 1,
+   "into": "schema",
+   "origin": "schema/ORIGIN"
+  }
+ ]
+}
