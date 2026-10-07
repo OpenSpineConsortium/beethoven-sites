@@ -18,6 +18,8 @@ ROOT = os.path.dirname(HERE)
 REPO = "OpenSpineConsortium/hpcworker"
 MAIN = "1" * 40
 BRANCH = "2" * 40
+# bash as PATH finds it: Windows looks in System32 (WSL's bash, which cannot read C:/ paths) before PATH
+BASH = shutil.which("bash") or "bash"
 
 # the stand-in: every call is recorded in calls, and answered from repo.json and tree/<commit>/
 FAKE_GH = r'''
@@ -126,7 +128,7 @@ class PullSchema(unittest.TestCase):
 
     def run_pull(self, *args):
         env = dict(os.environ, FAKE_GH=self.gh, PATH=self.bin + os.pathsep + os.environ.get("PATH", ""))
-        p = subprocess.run(["bash", os.path.join(self.root, "tools", "pull_schema.sh")] + list(args), env=env,
+        p = subprocess.run([BASH, os.path.join(self.root, "tools", "pull_schema.sh")] + list(args), env=env,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=120)
         return p.returncode, p.stdout + p.stderr
 
