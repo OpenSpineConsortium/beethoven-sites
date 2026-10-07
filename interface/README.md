@@ -84,18 +84,18 @@ The layout itself (a site module at `sites/<site>/site.json`, its labs under `la
 path) is this repository's own: it is the shape of the export `modules` above. hpcworker's pull and
 `compose-all` read the same layout.
 
+hpcworker's credential rule for a composed profile is in the schema now: hpcworker publishes it as `refused_values` in the module
+schema (since its commit ee08fa1), the copy here carries it, and the checker refuses a credential's shape
+(`sk-ant-`, `CLAUDE_CODE_OAUTH_TOKEN=`, `setup-token`) in every string of a module before the module
+merges (`tests/test_check_modules.py`).
+
 Rules hpcworker applies to the composed profile (`validate` in its `framework/lib/profile.py`, run by
 `compose-all` on every profile it writes) that module-schema 1 does not state, so the checker cannot
 apply them: a module that breaks one passes the required check here, merges, and is refused only when
-hpcworker next pulls the modules. The first row matters most, since a pull request here merges on the
-checks alone: hpcworker's interface pull request publishes it as `refused_values` in the module schema,
-and the checker already applies `refused_values` wherever the pinned schema carries them, so it holds
-here from the first pull after that merges (`tests/test_check_modules.py` shows it on a schema that
-carries the rule).
+hpcworker next pulls the modules.
 
 | Field | hpcworker's rule | What the schema would need to carry |
 |---|---|---|
-| every string, at any depth | no `sk-ant-`, `CLAUDE_CODE_OAUTH_TOKEN=` or `setup-token`: a profile never carries a credential | patterns no value may match |
 | `login_node_rules.poll_floor_seconds` | at least 60 | a minimum for a key |
 | `ssh_port` | 1 to 65535 | a minimum and a maximum |
 | `browser_key_days` | 1 to 3650, or null | a minimum and a maximum |
