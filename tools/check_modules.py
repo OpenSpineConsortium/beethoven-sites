@@ -16,9 +16,10 @@ Each rule comes from the schema wherever the schema states it: the fields, their
 that may set them, the keys inside an object field, what a profile must carry, the product's values,
 the keys a module says about itself, the id pattern, and whether a lab's profile is its site's. What
 module-schema 1 does not state is written here, marked so, and listed in interface/README.md with
-what the schema would need to carry. The composed profile's value rules (a host key's form, a link
-being https, the poll floor's minimum, no credential-shaped text) are in no schema yet, so only
-hpcworker applies them, when it composes the modules it pins (`profile.py compose-all --check`
+what the schema would need to carry. The schema's refused_values (a credential's shape, published by
+hpcworker with the interface) are refused in every string of a module once the copy here carries
+them. The composed profile's other value rules (a host key's form, a link being https, the poll
+floor's minimum) are in no schema yet, so only hpcworker applies them, when it composes the modules it pins (`profile.py compose-all --check`
 there): a module that passes here and fails there breaks one of those.
 """
 import json
@@ -156,6 +157,30 @@ def check_module(mod, kind, schema):
                 errs.append("%s.%s is not a key of %s (it has %s)" % (key, sub, key, ", ".join(s["name"] for s in fields[key]["keys"])))
             elif not type_ok(subs[sub], value[sub]):
                 errs.append("field %s.%s: expected %s, got %r" % (key, sub, describe(subs[sub]), value[sub]))
+    return errs + refused(mod, schema)
+
+
+def strings(obj, path=""):
+    """(where, text) for every string anywhere in OBJ, keys joined with dots and list items by index"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            for found in strings(v, "%s.%s" % (path, k) if path else k):
+                yield found
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            for found in strings(v, "%s.%d" % (path, i)):
+                yield found
+    elif isinstance(obj, str):
+        yield path, obj
+
+
+def refused(mod, schema):
+    """what the schema's refused_values forbid in any string of MOD (a credential's shape, from the module
+    schema hpcworker publishes after module-schema 1's first copy here; absent, nothing is refused)"""
+    errs = []
+    for rule in schema.get("refused_values", []):
+        rx = re.compile(rule["pattern"])
+        errs += ["field %s holds what no module may (%s)" % (where, rule["why"]) for where, text in strings(mod) if rx.search(text)]
     return errs
 
 

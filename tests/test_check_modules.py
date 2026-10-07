@@ -150,6 +150,20 @@ class Module(unittest.TestCase):
         lab["login_node_rules"] = {"max_processes": 10}
         self.refused(lab, "lab", "login_node_rules is set by the site module, not by a lab module")
 
+    def test_a_credential_shape_the_schema_refuses_is_refused_anywhere_in_a_module(self):
+        # module-schema 1 as first pinned here has no refused_values; the one hpcworker publishes with its
+        # interface does, and this is how the checker applies it once the copy carries it
+        schema = copy.deepcopy(SCHEMA)
+        schema["refused_values"] = [{"pattern": "(sk-ant-|CLAUDE_CODE_OAUTH_TOKEN=|setup-token)",
+                                     "applies_to": "every string anywhere in a module",
+                                     "why": "a profile is a settings file and never carries a credential"}]
+        self.assertEqual(C.check_module(self.site, "site", schema), [])
+        self.site["notes"] = "paste sk-ant-abc here"
+        self.lab["binds"] = ["/x/$USER", "CLAUDE_CODE_OAUTH_TOKEN=abc"]
+        self.assertEqual(C.check_module(self.site, "site", schema),
+                         ["field notes holds what no module may (a profile is a settings file and never carries a credential)"])
+        self.assertTrue(any(e.startswith("field binds.1 holds what no module may") for e in C.check_module(self.lab, "lab", schema)))
+
     def test_a_wrong_type(self):
         self.lab["binds"] = "/x/$USER"
         self.refused(self.lab, "lab", "field binds: expected list")

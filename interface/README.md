@@ -88,7 +88,10 @@ Rules hpcworker applies to the composed profile (`validate` in its `framework/li
 `compose-all` on every profile it writes) that module-schema 1 does not state, so the checker cannot
 apply them: a module that breaks one passes the required check here, merges, and is refused only when
 hpcworker next pulls the modules. The first row matters most, since a pull request here merges on the
-checks alone.
+checks alone: hpcworker's interface pull request publishes it as `refused_values` in the module schema,
+and the checker already applies `refused_values` wherever the pinned schema carries them, so it holds
+here from the first pull after that merges (`tests/test_check_modules.py` shows it on a schema that
+carries the rule).
 
 | Field | hpcworker's rule | What the schema would need to carry |
 |---|---|---|
