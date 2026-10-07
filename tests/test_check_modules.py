@@ -73,6 +73,35 @@ class Repository(unittest.TestCase):
         with self.assertRaises(ValueError):
             C.id_ok("wayne", dict(SCHEMA, id_match="prefix"))
 
+    def test_the_pinned_schema_is_one_this_checker_can_apply(self):
+        self.assertEqual(C.schema_problems(SCHEMA), [])
+        self.assertEqual(C.module_kinds(SCHEMA), ["site", "lab"])
+
+    def test_what_the_checker_cannot_apply_is_found_before_any_module_is_read(self):
+        """a type, an id match or a module kind this checker does not know fails the whole check, even
+        where no module uses it, and names what to change"""
+        schema = copy.deepcopy(SCHEMA)
+        schema["fields"]["notes"]["type"] = "text"
+        schema["fields"]["egress"]["keys"][1]["type"] = "map"
+        schema["id_match"] = "prefix"
+        schema["module_keys"]["group"] = ["kind"]
+        problems = C.schema_problems(schema)
+        self.assertEqual(len(problems), 4, problems)
+        for words in ("module kinds are group/lab/site, but sites/ holds site/lab", "an id match this checker does not know: 'prefix'",
+                      "field egress.proxy_env: the schema names a type this checker does not know: 'map'",
+                      "field notes: the schema names a type this checker does not know: 'text'"):
+            self.assertTrue([p for p in problems if words in p and p.endswith(C.NEW_TO_CHECKER)], (words, problems))
+        found, n_sites, n_labs = C.check_tree(schema=schema)
+        self.assertEqual((found, n_sites, n_labs), (["schema/module-schema.json: " + p for p in problems], 0, 0))
+
+    def test_which_layers_are_modules_comes_from_the_schema(self):
+        """a layer the schema's module_keys does not name is no module's, whatever it is called"""
+        schema = copy.deepcopy(SCHEMA)
+        schema["fields"]["display_name"]["layers"] = ["product"]
+        self.assertEqual(C.owner("display_name", "lab", schema), "display_name is the product's own value; no module sets it")
+        schema["fields"]["display_name"]["layers"] = ["account", "site"]
+        self.assertEqual(C.owner("display_name", "lab", schema), "display_name is set by the site module, not by a lab module")
+
 
 class Module(unittest.TestCase):
     def setUp(self):
@@ -120,6 +149,20 @@ class Module(unittest.TestCase):
         lab = copy.deepcopy(self.lab)
         lab["login_node_rules"] = {"max_processes": 10}
         self.refused(lab, "lab", "login_node_rules is set by the site module, not by a lab module")
+
+    def test_a_credential_shape_the_schema_refuses_is_refused_anywhere_in_a_module(self):
+        # module-schema 1 as first pinned here has no refused_values; the one hpcworker publishes with its
+        # interface does, and this is how the checker applies it once the copy carries it
+        schema = copy.deepcopy(SCHEMA)
+        schema["refused_values"] = [{"pattern": "(sk-ant-|CLAUDE_CODE_OAUTH_TOKEN=|setup-token)",
+                                     "applies_to": "every string anywhere in a module",
+                                     "why": "a profile is a settings file and never carries a credential"}]
+        self.assertEqual(C.check_module(self.site, "site", schema), [])
+        self.site["notes"] = "paste sk-ant-abc here"
+        self.lab["binds"] = ["/x/$USER", "CLAUDE_CODE_OAUTH_TOKEN=abc"]
+        self.assertEqual(C.check_module(self.site, "site", schema),
+                         ["field notes holds what no module may (a profile is a settings file and never carries a credential)"])
+        self.assertTrue(any(e.startswith("field binds.1 holds what no module may") for e in C.check_module(self.lab, "lab", schema)))
 
     def test_a_wrong_type(self):
         self.lab["binds"] = "/x/$USER"
