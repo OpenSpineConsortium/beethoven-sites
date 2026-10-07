@@ -17,8 +17,7 @@ that may set them, the keys inside an object field, what a profile must carry, t
 the keys a module says about itself, the id pattern, and whether a lab's profile is its site's. What
 module-schema 1 does not state is written here, marked so, and listed in interface/README.md with
 what the schema would need to carry. The schema's refused_values (a credential's shape, published by
-hpcworker with the interface) are refused in every string of a module once the copy here carries
-them. The composed profile's other value rules (a host key's form, a link being https, the poll
+hpcworker with its interface) are refused in every string of a module. The composed profile's other value rules (a host key's form, a link being https, the poll
 floor's minimum) are in no schema yet, so only hpcworker applies them, when it composes the modules it pins (`profile.py compose-all --check`
 there): a module that passes here and fails there breaks one of those.
 """

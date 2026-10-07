@@ -47,6 +47,13 @@
  "additive": [
   "binds"
  ],
+ "refused_values": [
+  {
+   "pattern": "(sk-ant-|CLAUDE_CODE_OAUTH_TOKEN=|setup-token)",
+   "applies_to": "every string anywhere in a module",
+   "why": "a profile is a settings file and never carries a credential"
+  }
+ ],
  "fields": {
   "schema_version": {
    "type": "int",
