@@ -45,6 +45,18 @@ Wayne State is the site `wayne` and the lab `oschome`, composed into `profiles/w
   token or an account's private data: a module's values are read by every client and published,
   inside the composed profile, with the framework's shared copy.
 
+## The synthetic example
+
+`examples/` holds universities that do not exist, in the same layout and under the same checker:
+`examples/example/` is Example University, written to differ from Wayne State wherever a module can
+(no QoS and an allocation account, node-local `$SLURM_TMPDIR`, Singularity with no module, a proxy, a
+cookie-sign-in portal, no VPN, no shared copy; `examples/README.md` has the whole list). It is never a
+deployment: it is offered as its own export, `example-modules`, never inside `modules`, so no profile
+of it ships to a student, and consumers' tests run on it beside the deployments to show any code that
+works only for Wayne State (Linear BEE-200). Its hosts and links sit under names reserved for examples
+(`university.example`), nothing in it is a measurement, and it shares no id with a deployment; the
+checker refuses an example that breaks one of those.
+
 ## Checking a module
 
 ```
@@ -56,7 +68,7 @@ Python 3.6 standard library, nothing else, and nothing of hpcworker imported: wh
 module checks it with this repository alone. The checker sees each module and each site and lab pair,
 with every rule the pinned schema states; what the schema does not state yet is listed in
 `interface/README.md`. The composed profile's value rules (a host key's form, a link being https, the
-poll floor's minimum, no credential-shaped text) are in no schema yet and are checked only by
+poll floor's minimum) are in no schema yet and are checked only by
 hpcworker when it composes what it pins (`profile.py compose-all --check`), so a module that passes
 here can still fail there.
 

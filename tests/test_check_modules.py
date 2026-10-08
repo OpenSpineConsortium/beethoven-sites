@@ -1,5 +1,6 @@
 """tools/check_modules.py: every module in this repository passes, and each kind of mistake a module
-can make on its own is refused with words that say what to change. The schema copy is checked
+can make on its own is refused with words that say what to change. The synthetic example under
+examples/ differs from every deployment and can name no real machine. The schema copy is checked
 against its ORIGIN record. Python 3.6 standard library, like the checker."""
 import copy
 import hashlib
@@ -19,10 +20,10 @@ import check_modules as C  # noqa: E402
 SCHEMA = C.load_schema()
 
 
-def modules():
-    """[(site.json, lab.json)] for every lab in the repository"""
+def modules(top="sites"):
+    """[(site.json, lab.json)] for every lab under TOP: the deployments, or (examples) the synthetic ones"""
     out = []
-    sites = os.path.join(ROOT, "sites")
+    sites = os.path.join(ROOT, top)
     for name in sorted(os.listdir(sites)):
         labs = os.path.join(sites, name, "labs")
         for fn in sorted(os.listdir(labs)) if os.path.isdir(labs) else []:
@@ -33,16 +34,19 @@ def modules():
 
 class Repository(unittest.TestCase):
     def test_every_module_here_passes(self):
-        problems, n_sites, n_labs = C.check_tree()
+        problems, counts = C.check_tree()
         self.assertEqual(problems, [])
-        self.assertGreaterEqual(n_sites, 1)
-        self.assertGreaterEqual(n_labs, 1)
+        for top in (C.SITES, C.EXAMPLES):
+            n_sites, n_labs = counts[top]
+            self.assertGreaterEqual(n_sites, 1, top)
+            self.assertGreaterEqual(n_labs, 1, top)
 
     def test_the_command_line(self):
         p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "check_modules.py")],
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self.assertTrue(p.stdout.decode("utf-8").startswith("ok: "))
+        self.assertIn("synthetic site module(s) and", p.stdout.decode("utf-8"))
         p = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "check_modules.py"), "--root"],
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
         self.assertEqual(p.returncode, 2)
@@ -91,8 +95,9 @@ class Repository(unittest.TestCase):
                       "field egress.proxy_env: the schema names a type this checker does not know: 'map'",
                       "field notes: the schema names a type this checker does not know: 'text'"):
             self.assertTrue([p for p in problems if words in p and p.endswith(C.NEW_TO_CHECKER)], (words, problems))
-        found, n_sites, n_labs = C.check_tree(schema=schema)
-        self.assertEqual((found, n_sites, n_labs), (["schema/module-schema.json: " + p for p in problems], 0, 0))
+        found, counts = C.check_tree(schema=schema)
+        self.assertEqual((found, counts), (["schema/module-schema.json: " + p for p in problems],
+                                           {C.SITES: (0, 0), C.EXAMPLES: (0, 0)}))
 
     def test_which_layers_are_modules_comes_from_the_schema(self):
         """a layer the schema's module_keys does not name is no module's, whatever it is called"""
@@ -193,12 +198,12 @@ class Module(unittest.TestCase):
 
 
 class Tree(unittest.TestCase):
-    """the checker over a copy of sites/ and schema/"""
+    """the checker over a copy of sites/, examples/ and schema/"""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = self.tmp.name
-        for d in ("sites", "schema"):
+        for d in ("sites", "examples", "schema"):
             shutil.copytree(os.path.join(ROOT, d), os.path.join(self.root, d))
         site_path, lab_path = modules()[0]
         self.site_rel = os.path.relpath(site_path, ROOT).replace(os.sep, "/")
@@ -268,10 +273,99 @@ class Tree(unittest.TestCase):
         self.assertEqual(self.problems(), [])
 
     def test_a_new_university_with_its_own_lab_passes(self):
-        self.write("sites/example/site.json", dict(self.site, site="example", display_name="Example University"))
-        self.write("sites/example/labs/lab1.json", dict(self.lab, site="example", lab="lab1", profile="example"))
-        problems, _n_sites, n_labs = C.check_tree(self.root)
-        self.assertEqual((problems, n_labs), ([], len(modules()) + 1))
+        self.write("sites/another/site.json", dict(self.site, site="another", display_name="Another University"))
+        self.write("sites/another/labs/lab1.json", dict(self.lab, site="another", lab="lab1", profile="another"))
+        problems, counts = C.check_tree(self.root)
+        self.assertEqual((problems, counts[C.SITES][1]), ([], len(modules()) + 1))
+
+    def test_a_synthetic_site_never_takes_a_deployments_id(self):
+        """a consumer that tests the examples beside the deployments would mix two profiles of one id"""
+        ex_site, ex_lab = (C.read_json(p) for p in modules("examples")[0])
+        self.write("examples/%s/site.json" % self.site_id, dict(ex_site, site=self.site_id))
+        self.write("examples/%s/labs/demo.json" % self.site_id, dict(ex_lab, site=self.site_id, profile=self.site_id))
+        problems = self.problems()
+        self.assertIn("%s and examples/%s/site.json both name the site %r" % (self.site_rel, self.site_id, self.site_id), problems)
+        self.assertIn("%s and examples/%s/labs/demo.json both compose profiles/%s.json" % (self.lab_rel, self.site_id, self.lab["profile"]),
+                      problems)
+        # the profile alone collides too, once a lab may name a profile of its own (BEE-208)
+        shutil.rmtree(os.path.join(self.root, "examples", self.site_id))
+        self.write("examples/elsewhere/site.json", dict(ex_site, site="elsewhere"))
+        self.write("examples/elsewhere/labs/demo.json", dict(ex_lab, site="elsewhere", profile=self.lab["profile"]))
+        problems = C.check_tree(self.root, dict(C.load_schema(self.root), profile_is_site=False))[0]
+        self.assertEqual(problems, ["%s and examples/elsewhere/labs/demo.json both compose profiles/%s.json"
+                                    % (self.lab_rel, self.lab["profile"])])
+
+    def test_a_problem_in_an_example_names_its_file(self):
+        site_path, lab_path = modules("examples")[0]
+        lab_rel = os.path.relpath(lab_path, ROOT).replace(os.sep, "/")
+        lab = C.read_json(lab_path)
+        del lab["claude_bin"]
+        self.write(lab_rel, lab)
+        self.assertEqual(self.problems(), ["%s: the profile it composes with %s lacks claude_bin, which neither sets"
+                                           % (lab_rel, os.path.relpath(site_path, ROOT).replace(os.sep, "/"))])
+
+
+class Example(unittest.TestCase):
+    """examples/: a university that does not exist, written to differ from every deployment wherever a
+    module can (BEE-200), so a consumer's test that passes only for Wayne State shows itself"""
+
+    # what a synthetic site may share with a deployment, and why
+    SAME = {
+        "kind": "what the file is",
+        "module_version": "the layout's version",
+        # the design keeps Slurm (sites/DESIGN.md, section 1): the PBS and LSF adapters have fixture tests of their own
+        "scheduler": "Slurm, which every deployment so far runs",
+    }
+
+    def setUp(self):
+        self.pairs = modules("examples")
+        self.assertTrue(self.pairs)
+
+    def test_each_example_passes_alone_and_names_no_real_machine(self):
+        for site_path, lab_path in self.pairs:
+            for path, kind in ((site_path, "site"), (lab_path, "lab")):
+                mod = C.read_json(path)
+                self.assertEqual(C.check_module(mod, kind, SCHEMA) + C.example_problems(mod), [], path)
+
+    def test_an_example_differs_from_every_deployment(self):
+        for ex_site, ex_lab in self.pairs:
+            for site, lab in modules():
+                for ex, real in ((ex_site, site), (ex_lab, lab)):
+                    a, b = C.read_json(ex), C.read_json(real)
+                    same = sorted(k for k in a if k in b and a[k] == b[k] and k not in self.SAME)
+                    self.assertEqual(same, [], "%s sets these as %s does; change them, or name them in SAME with why" % (ex, real))
+
+    def test_a_real_host_or_link_is_refused(self):
+        site = C.read_json(self.pairs[0][0])
+        cases = (
+            ({"ssh_host": "grid.wayne.edu"}, "field ssh_host names 'grid.wayne.edu'"),
+            ({"ood_base_url": "https://ondemand.grid.wayne.edu"}, "field ood_base_url links to 'ondemand.grid.wayne.edu'"),
+            ({"egress": dict(site["egress"], proxy_env={"https_proxy": "http://proxy.university.edu:3128"})},
+             "field egress.proxy_env.https_proxy links to 'proxy.university.edu'"),
+            ({"grid_2fa_help_url": "https://help@duo.university.edu/x"}, "field grid_2fa_help_url links to 'duo.university.edu'"),
+            ({"notes": "see https://www.wayne.edu for the real one"}, "field notes links to 'www.wayne.edu'"),
+            ({"ssh_host_key": "SHA256:" + "A" * 43}, "ssh_host_key is set: a synthetic site has no host"),
+            ({"egress": dict(site["egress"], measured={"when": "2026-10-08", "api.anthropic.com": 404})},
+             "egress.measured holds api.anthropic.com, when: nothing is measured at a synthetic site"),
+        )
+        for change, words in cases:
+            with self.subTest(change=change):
+                errs = C.example_problems(dict(site, **change))
+                self.assertTrue(len(errs) == 1 and words in errs[0], (words, errs))
+
+    def test_reserved_names_and_short_names_pass(self):
+        site = C.read_json(self.pairs[0][0])
+        for change in ({"ssh_host": "HPC.University.Example"}, {"ssh_host": "login.cluster.test"},
+                       {"submit_host": "login1"}, {"ood_base_url": "https://portal.example.org"},
+                       {"ssh_relay": "wss://relay.example.com/ssh"}, {"vpn_portal": ""}, {"ssh_relay": None}):
+            with self.subTest(change=change):
+                self.assertEqual(C.example_problems(dict(site, **change)), [])
+
+    def test_the_rule_binds_examples_only(self):
+        """a deployment names its real hosts and records what it measured; only a synthetic site may not"""
+        site_path, _lab = modules()[0]
+        self.assertTrue(C.example_problems(C.read_json(site_path)))
+        self.assertEqual(C.check_tree()[0], [])
 
 
 if __name__ == "__main__":
