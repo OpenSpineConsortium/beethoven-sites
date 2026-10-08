@@ -1,0 +1,26 @@
+{
+ "kind": "lab",
+ "module_version": 1,
+ "site": "example",
+ "lab": "demo",
+ "profile": "example",
+ "partition_cpu_batch": "long",
+ "account": "demo-alloc",
+ "shared_state_dir": "/lustre/projects/demo/$USER/hpcworker",
+ "image_store": {
+  "type": "sif",
+  "path": "/lustre/projects/demo/containers/claude-node22.sif"
+ },
+ "claude_bin": "/lustre/projects/demo/npm-claude/bin/claude",
+ "binds": [
+  "/lustre/projects/demo"
+ ],
+ "browser_key_days": 30,
+ "login_abandon_s": 900,
+ "worker_defaults": {
+  "cpus": 4,
+  "mem": "16G",
+  "hours": 12
+ },
+ "notes": "Synthetic, like its site: a lab with no shared copy of the framework (each student installs their own), its images as SIF files, an allocation account its jobs charge, and its own worker sizes."
+}

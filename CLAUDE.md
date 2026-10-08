@@ -41,6 +41,11 @@ bash tools/pull_schema.sh [--ref REF]              # take hpcworker's export mod
 git config core.hooksPath .githooks                # once per checkout: the checks run before every push
 ```
 
+`examples/` holds universities that do not exist (`examples/README.md`): hosts and links only under
+reserved names such as `university.example`, nothing recorded as measured, no id a deployment has. Keep
+each one different from every deployment wherever a module can; `tests/test_check_modules.py` names
+the few fields that may match, with why.
+
 A change to a module: edit it, run the checker and the tests, open a pull request (ready, never a
 draft); the required check decides and auto-merge lands it. Then hpcworker takes it with
 `framework/sites/pull.sh` and `profile.py compose-all` in a pull request of its own. A change to what
@@ -49,7 +54,8 @@ a module may carry is made in hpcworker first (`FIELD_LAYERS`, `SUBFIELDS`, `PRO
 with `tools/pull_schema.sh`.
 
 This repository is sealed (the interface standard; `interface/README.md`): `interface/INTERFACE.json`
-declares what it offers (the export `modules`, every file under `sites/`) and what it takes
+declares what it offers (the export `modules`, every file under `sites/`, and `example-modules`, the
+synthetic universities under `examples/`, which never ship) and what it takes
 (hpcworker's `module-schema` into `schema/`), and `tests/test_boundary.py` fails on a line that reaches
 another repository's checkout, on a copy that differs from its `ORIGIN`, and on a manifest out of
 form. Nothing here reads, runs or copies a file of another checkout; the schema is taken only by

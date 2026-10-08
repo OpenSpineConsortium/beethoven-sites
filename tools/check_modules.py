@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Check every site and lab module under sites/ against the module schema hpcworker publishes
-(schema/module-schema.json, its export module-schema, pinned by schema/ORIGIN). Python 3.6 standard
-library only, nothing imported from hpcworker, so whoever writes a module can check it with this
-repository alone.
+"""Check every site and lab module under sites/, and the synthetic ones under examples/, against the
+module schema hpcworker publishes (schema/module-schema.json, its export module-schema, pinned by
+schema/ORIGIN). Python 3.6 standard library only, nothing imported from hpcworker, so whoever writes a
+module can check it with this repository alone.
 
     python3 tools/check_modules.py [--root DIR]
 
@@ -20,6 +20,12 @@ what the schema would need to carry. The schema's refused_values (a credential's
 hpcworker with its interface) are refused in every string of a module. The composed profile's other value rules (a host key's form, a link being https, the poll
 floor's minimum) are in no schema yet, so only hpcworker applies them, when it composes the modules it pins (`profile.py compose-all --check`
 there): a module that passes here and fails there breaks one of those.
+
+A module under examples/ is a university that does not exist (the export example-modules, never the
+export modules, so no profile of it reaches a student). It follows every rule above in the same layout,
+shares no site or profile id with sites/, and must never name a real machine: each host and link sits
+under a name reserved for examples (RFC 2606, RFC 6761), and nothing in it is a measurement (no host
+key, nothing under egress.measured).
 """
 import json
 import os
@@ -55,6 +61,17 @@ TYPES = {
 }
 # a schema that changes one of these comes with a change here, in the pull request that takes it
 NEW_TO_CHECKER = "; tools/check_modules.py learns it in the pull request that takes this schema"
+
+# The two trees of modules, in the layout of the export modules: the deployments, and the synthetic
+# universities the tests of every consumer run beside them (the export example-modules).
+SITES, EXAMPLES = "sites", "examples"
+# Which fields of a module hold a host name, for the examples' rule. Not in module-schema 1 (it gives
+# types, not formats); a link anywhere in a module is found by its scheme instead (LINK).
+HOST_FIELDS = ("submit_host", "ood_shell_host", "vpn_portal", "ssh_host")
+LINK = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://([^/\s:?#\"'\\]*)")
+# the names no machine on the internet will ever answer to: RFC 2606's three second-level names and its
+# top-level ones (with RFC 6761's .localhost)
+RESERVED = re.compile(r"(?:^|\.)(?:example|test|invalid|localhost|example\.com|example\.net|example\.org)\Z", re.I)
 
 
 def read_json(path):
@@ -198,18 +215,48 @@ def missing(site, lab, schema):
     return out
 
 
-def check_tree(root=None, schema=None):
-    """(problems, number of sites, number of labs) for every module under ROOT/sites."""
-    root = root or ROOT
-    schema = schema or load_schema(root)
-    bad = schema_problems(schema)
-    if bad:
-        return ["schema/module-schema.json: %s" % p for p in bad], 0, 0
-    sites_dir = os.path.join(root, "sites")
-    problems, n_sites, n_labs, profiles = [], 0, 0, {}
+def example_problems(mod):
+    """Why MOD, a module under examples/, could reach or describe a real machine: a host or a link that
+    is not under a reserved name, a host key, or a measurement. A university that does not exist has
+    none of these, so a test that runs on it can never touch the internet by mistake."""
+    if not isinstance(mod, dict):
+        return []
+    errs = []
+    for key in HOST_FIELDS:
+        host = mod.get(key)
+        # a name with no dot is a short name inside the cluster (login1), which no one outside resolves
+        if isinstance(host, str) and "." in host and not RESERVED.search(host):
+            errs.append("field %s names %r: a synthetic site's hosts sit under a reserved name such as "
+                        "university.example (RFC 2606)" % (key, host))
+    for where, text in strings(mod):
+        for m in LINK.finditer(text):
+            host = m.group(1).rsplit("@", 1)[-1]
+            if not RESERVED.search(host):
+                errs.append("field %s links to %r: a synthetic site's links sit under a reserved name such as "
+                            "university.example (RFC 2606)" % (where, host or m.group(0)))
+    if mod.get("ssh_host_key"):
+        errs.append("ssh_host_key is set: a synthetic site has no host to measure a key from; leave it empty")
+    measured = mod.get("egress", {}).get("measured") if isinstance(mod.get("egress"), dict) else None
+    if measured:
+        errs.append("egress.measured holds %s: nothing is measured at a synthetic site; leave it empty"
+                    % ", ".join(sorted(str(k) for k in measured)))
+    return errs
+
+
+def _check_folder(root, top, schema, ids):
+    """(problems, number of sites, number of labs) for every module under ROOT/TOP. IDS maps each site id
+    and each profile id already seen, in this tree or another, to where it was seen."""
+    problems, n_sites, n_labs = [], 0, 0
+    sites_dir = os.path.join(root, top)
+    example = top == EXAMPLES
 
     def rel(path):
         return os.path.relpath(path, root).replace(os.sep, "/")
+
+    def module(path, kind):
+        mod = read_json(path)
+        errs = check_module(mod, kind, schema) + (example_problems(mod) if example else [])
+        return mod, ["%s: %s" % (rel(path), e) for e in errs]
 
     for name in sorted(os.listdir(sites_dir)) if os.path.isdir(sites_dir) else []:
         folder = os.path.join(sites_dir, name)
@@ -220,27 +267,31 @@ def check_tree(root=None, schema=None):
             problems.append("%s: no site.json" % rel(folder))
             continue
         try:
-            site = read_json(site_path)
+            site, errs = module(site_path, "site")
         except ValueError as e:
             problems.append(str(e).replace(site_path, rel(site_path)))
             continue
         n_sites += 1
-        problems += ["%s: %s" % (rel(site_path), e) for e in check_module(site, "site", schema)]
+        problems += errs
         if isinstance(site, dict) and site.get("site") != name:
             problems.append("%s: its site id must be %r, the folder's name" % (rel(site_path), name))
+        # a synthetic site never shares an id with a deployment: a consumer that tests both would mix them
+        if ("site", name) in ids:
+            problems.append("%s and %s both name the site %r" % (ids[("site", name)], rel(site_path), name))
+        else:
+            ids[("site", name)] = rel(site_path)
         labs = os.path.join(folder, "labs")
         for fn in sorted(os.listdir(labs)) if os.path.isdir(labs) else []:
             lab_path = os.path.join(labs, fn)
             if not fn.endswith(".json"):
                 continue
             try:
-                lab = read_json(lab_path)
+                lab, errs = module(lab_path, "lab")
             except ValueError as e:
                 problems.append(str(e).replace(lab_path, rel(lab_path)))
                 continue
             n_labs += 1
-            errs = check_module(lab, "lab", schema)
-            problems += ["%s: %s" % (rel(lab_path), e) for e in errs]
+            problems += errs
             if not isinstance(lab, dict):
                 continue
             if lab.get("lab") != fn[:-5] or lab.get("site") != name:
@@ -248,15 +299,31 @@ def check_tree(root=None, schema=None):
             # one lab per profile id: hpcworker's compose-all refuses two, and module-schema 1 does not say so
             pid = lab.get("profile")
             if isinstance(pid, str):
-                if pid in profiles:
-                    problems.append("%s and %s both compose profiles/%s.json" % (profiles[pid], rel(lab_path), pid))
+                if ("profile", pid) in ids:
+                    problems.append("%s and %s both compose profiles/%s.json" % (ids[("profile", pid)], rel(lab_path), pid))
                 else:
-                    profiles[pid] = rel(lab_path)
+                    ids[("profile", pid)] = rel(lab_path)
             if isinstance(site, dict):
                 for key in missing(site, lab, schema):
                     problems.append("%s: the profile it composes with %s lacks %s, which neither sets"
                                     % (rel(lab_path), rel(site_path), key))
     return problems, n_sites, n_labs
+
+
+def check_tree(root=None, schema=None):
+    """(problems, {tree: (number of sites, number of labs)}) for every module under ROOT/sites and
+    ROOT/examples."""
+    root = root or ROOT
+    schema = schema or load_schema(root)
+    bad = schema_problems(schema)
+    if bad:
+        return ["schema/module-schema.json: %s" % p for p in bad], {SITES: (0, 0), EXAMPLES: (0, 0)}
+    problems, counts, ids = [], {}, {}
+    for top in (SITES, EXAMPLES):
+        found, n_sites, n_labs = _check_folder(root, top, schema, ids)
+        problems += found
+        counts[top] = (n_sites, n_labs)
+    return problems, counts
 
 
 def main(argv):
@@ -268,13 +335,14 @@ def main(argv):
         sys.stderr.write("usage: python3 tools/check_modules.py [--root DIR]\n")
         return 2
     try:
-        problems, n_sites, n_labs = check_tree(root)
+        problems, counts = check_tree(root)
     except ValueError as e:
-        problems, n_sites, n_labs = [str(e)], 0, 0
+        problems, counts = [str(e)], {SITES: (0, 0), EXAMPLES: (0, 0)}
     for p in problems:
         print("ERROR: " + p)
     if not problems:
-        print("ok: %d site module(s) and %d lab module(s) match schema/module-schema.json" % (n_sites, n_labs))
+        print("ok: %d site module(s) and %d lab module(s), and %d synthetic site module(s) and %d lab module(s) "
+              "under examples/, match schema/module-schema.json" % (counts[SITES] + counts[EXAMPLES]))
     return 1 if problems else 0
 
 

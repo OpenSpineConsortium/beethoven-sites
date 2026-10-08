@@ -190,6 +190,24 @@ class Declared(unittest.TestCase):
         self.assertTrue(modules)
         self.assertEqual([f for f in modules if not any(covered(f, p) for p in export[0]["paths"])], [])
 
+    def test_the_examples_are_their_own_export_and_never_a_deployment(self):
+        """the synthetic universities are offered as example-modules only: a consumer that takes the export
+        modules (hpcworker, which composes the profiles every client ships) never receives one, and every
+        example module is in example-modules"""
+        exports = dict((e["id"], e) for e in manifest()["exports"])
+        self.assertEqual((exports["example-modules"]["kind"], exports["example-modules"]["version"]), ("data", 1))
+        files = tracked()
+        examples = [f for f in files if f.startswith("examples/") and f.endswith(".json")]
+        self.assertTrue(examples)
+        for f in examples:
+            with self.subTest(file=f):
+                self.assertTrue(any(covered(f, p) for p in exports["example-modules"]["paths"]), f)
+                self.assertFalse(any(covered(f, p) for p in exports["modules"]["paths"]), f)
+        self.assertEqual([f for f in files if f.startswith("sites/") and any(covered(f, p) for p in exports["example-modules"]["paths"])], [])
+        # the export holds the modules alone, so a consumer's copy of it needs no file it may not keep
+        self.assertEqual([f for f in files if any(covered(f, p) for p in exports["example-modules"]["paths"])
+                          and not re.match(r"examples/[a-z0-9][a-z0-9-]*/(site|labs/[a-z0-9][a-z0-9-]*)\.json\Z", f)], [])
+
     def test_the_path_rule(self):
         self.assertTrue(covered("sites/wayne/site.json", "sites/"))
         self.assertTrue(covered("framework/profiles/wayne.json", "framework/profiles/*.json"))

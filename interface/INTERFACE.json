@@ -12,6 +12,14 @@
    "summary": "sites/<site>/site.json and sites/<site>/labs/<lab>.json, each passing tools/check_modules.py against the pinned module schema; hpcworker composes the profiles from them",
    "paths": ["sites/"],
    "consumers": ["OpenSpineConsortium/hpcworker"]
+  },
+  {
+   "id": "example-modules",
+   "kind": "data",
+   "version": 1,
+   "summary": "examples/<site>/site.json and examples/<site>/labs/<lab>.json: universities that do not exist, in the layout of the export modules and passing the same checker, that differ from every deployment wherever a module can and name only reserved hosts (RFC 2606), for a consumer's tests to run beside the deployments; never a deployment, so never composed into a profile that ships",
+   "paths": ["examples/*/site.json", "examples/*/labs/*.json"],
+   "consumers": []
   }
  ],
  "imports": [

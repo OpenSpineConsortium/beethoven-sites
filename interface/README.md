@@ -28,6 +28,22 @@ files are called) or the keys a module says about itself (`kind`, `module_versio
 and keeps the version. Nothing else here is offered: `tools/check_modules.py` (its command line and
 its messages), the tests and the hook may change in any pull request.
 
+## Offered: `example-modules`, version 1 (data)
+
+The synthetic universities: `examples/<site>/site.json` and `examples/<site>/labs/<lab>.json`, the
+module files alone (the export's paths list no README, so a consumer's copy of it holds nothing it may
+not keep). They are in the layout of `modules` and pass the same checker, with three rules more
+(`example_problems`, and the shared id check in `check_tree`): every host and link under a name
+reserved for examples, nothing measured, and no site or profile id that a module under `sites/` has.
+`examples/README.md` says what each one varies and what module-schema 1 cannot vary yet.
+
+No repository takes it yet. It is meant for hpcworker's suite (BEE-200): a consumer takes it with a
+pull of its own, as rule 3 says, and composes it where its tests run, never into the folder of profiles
+it ships; an example in `modules` would be composed into `framework/profiles/` and reach every
+client's package, which is why the two exports never share a file (`tests/test_boundary.py`). The
+version rises on the same changes as `modules`'s; an example added, changed or removed within the
+schema is data and keeps it.
+
 ## Taken: hpcworker's `module-schema`, version 1 (schema), into `schema/`
 
 `schema/module-schema.json`, with its record `schema/ORIGIN` (the hpcworker commit, the export and
@@ -79,6 +95,7 @@ Rules the checker holds by hand, as hpcworker's `validate_module` and `compose-a
 | Which keys are ids, matched against `id_pattern`: a site module's `site`, a lab module's `site`, `lab` and `profile` | `IDS`, `check_module` | which module keys and fields are ids |
 | An object field merges key by key across the layers, so a key the profile must carry may come from any layer's object; every other value a later layer sets replaces the earlier one | `missing` | the merge rule beside `additive`, which names only the lists that add up |
 | Two lab modules never compose one profile | `check_tree` | that a profile id is composed by one lab module |
+| Which fields hold a host name (for the examples' reserved-name rule; a link anywhere is found by its scheme) | `HOST_FIELDS`, `LINK` | a format for each field (host, link, path) |
 
 The layout itself (a site module at `sites/<site>/site.json`, its labs under `labs/`, ids equal to the
 path) is this repository's own: it is the shape of the export `modules` above. hpcworker's pull and

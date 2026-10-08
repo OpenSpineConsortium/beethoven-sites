@@ -1,0 +1,51 @@
+{
+ "kind": "site",
+ "module_version": 1,
+ "site": "example",
+ "display_name": "Example University research cluster (synthetic, never deployed)",
+ "scheduler": "slurm",
+ "submit_host": "login1",
+ "bin_dir": "/opt/slurm/bin",
+ "partition_cpu": "standard",
+ "partitions_gpu": [
+  "gpu"
+ ],
+ "max_walltime": "2-00:00:00",
+ "node_tmp": "$SLURM_TMPDIR/$USER/hpcworker_$SLURM_JOB_ID",
+ "node_tmp_var": "SLURM_TMPDIR",
+ "tmpdir_is_node_local": true,
+ "runtime": "singularity",
+ "runtime_bin": "/usr/bin/singularity",
+ "cache_dir": "$SLURM_TMPDIR/$USER/singularity-cache",
+ "fakeroot_rung": 2,
+ "egress": {
+  "class": "http-proxy-module",
+  "proxy_env": {},
+  "proxy_module": "proxy/1",
+  "ca_bundle": "/etc/pki/tls/certs/university-ca.pem",
+  "measured": {}
+ },
+ "ood_base_url": "https://ondemand.hpc.university.example",
+ "ood_shell_host": "login1.hpc.university.example",
+ "ood_rnode_enabled": true,
+ "ood_auth": "cookie",
+ "vpn_required": false,
+ "vpn_portal": "",
+ "vpn_app": "",
+ "vpn_help_url": "",
+ "grid_account_help_url": "https://hpc.university.example/accounts",
+ "grid_2fa_help_url": "https://hpc.university.example/duo",
+ "ssh_host": "login.hpc.university.example",
+ "ssh_port": 2222,
+ "ssh_host_key": "",
+ "ssh_relay": "wss://relay.hpc.university.example/ssh",
+ "session_title": "Example University cluster",
+ "login_node_rules": {
+  "max_processes": 50,
+  "poll_floor_seconds": 120
+ },
+ "xdg_runtime_fix": false,
+ "scheduler_in_worker": false,
+ "home_filesystem": "lustre",
+ "notes": "Synthetic: a university that does not exist, written to differ from Wayne State wherever module-schema 1 lets a module differ (Linear BEE-200), so a test that passes only for Wayne State shows itself. Nothing here was measured and no machine answers at these names: every host and link is under the reserved name university.example (RFC 2606), ssh_host_key is empty and egress.measured holds nothing. The cluster it stands for: Slurm with no QoS and an allocation account every job must name (the lab module's account), node-local $SLURM_TMPDIR that $TMPDIR also points at, a Lustre home, Singularity on the PATH with no module to load, the internet only through a proxy that the module proxy/1 sets, an Open OnDemand portal that signs in with a cookie, Duo as the second factor, no VPN, and a login node that allows 50 processes and asks clients to poll no faster than every 120 s."
+}
