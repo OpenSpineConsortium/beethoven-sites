@@ -152,6 +152,14 @@
    "required": false,
    "description": "GPU partitions, in order of preference"
   },
+  "qos_gpu": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "QoS for partitions_gpu"
+  },
   "account": {
    "type": "str",
    "layers": [
@@ -462,6 +470,14 @@
    ],
    "required": false,
    "description": "the port of ssh_host"
+  },
+  "node_domain": {
+   "type": "str",
+   "layers": [
+    "site"
+   ],
+   "required": false,
+   "description": "the compute nodes' domain (as nodes.university.example): a node is reached by ssh through the login node, and only while a job of yours runs on it; empty = not known"
   },
   "ssh_host_key": {
    "type": "str",
